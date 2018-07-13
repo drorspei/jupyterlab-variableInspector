@@ -15,6 +15,8 @@ export
      */
 
     static py_script: string = `import json
+import pdb
+import inspect
 from sys import getsizeof
 from IPython import get_ipython
 from IPython.core.magics.namespace import NamespaceMagics
@@ -108,17 +110,18 @@ def _jupyterlab_variableinspector_is_matrix(x):
     return False
 
 
-def _jupyterlab_variableinspector_dict_list():
+def _jupyterlab_variableinspector_just_list():
     def keep_cond(v):
-        if isinstance(eval(v), str):
+        ev = eval(v)
+        if isinstance(ev, str):
             return True
-        if tf and isinstance(eval(v), tf.Variable):
+        if tf and isinstance(ev, tf.Variable):
             return True
-        if str(eval(v))[0] == "<":
+        if str(ev)[0] == "<":
             return False
         if  v in ['np', 'pd', 'pyspark', 'tf']:
-            return eval(v) is not None
-        if str(eval(v)).startswith("_Feature"):
+            return ev is not None
+        if str(ev).startswith("_Feature"):
             # removes tf/keras objects
             return False
         return True
@@ -128,15 +131,92 @@ def _jupyterlab_variableinspector_dict_list():
     'varSize': str(_jupyterlab_variableinspector_getsizeof(eval(_v))), 
     'varShape': str(_jupyterlab_variableinspector_getshapeof(eval(_v))) if _jupyterlab_variableinspector_getshapeof(eval(_v)) else '', 
     'varContent': str(_jupyterlab_variableinspector_getcontentof(eval(_v))), 
-    'isMatrix': _jupyterlab_variableinspector_is_matrix(eval(_v))}
-            for _v in values if keep_cond(_v)]
-    return json.dumps(vardic)
+    'isMatrix': _jupyterlab_variableinspector_is_matrix(eval(_v)),
+    'scope': 'global'}
+        for _v in values if keep_cond(_v)]
+    return vardic
 
 
-def _jupyterlab_variableinspector_getmatrixcontent(x, max_rows=10000):
+def _jupyterlab_variableinspector_dict_list():
+    return json.dumps(_jupyterlab_variableinspector_just_list())
+
+
+def _jupyterlab_variableinspector_up_locals():
+    last_pdb_frame = None
+    frame = inspect.currentframe().f_back
+    try:
+        while frame:
+            if isinstance(frame.f_locals.get('self', None), pdb.Pdb):
+                last_pdb_frame = frame
+            elif last_pdb_frame is not None:
+                break
+            frame = frame.f_back
+
+        if last_pdb_frame is not None:
+            return last_pdb_frame.f_back.f_locals
+    except:
+        pass
+    finally:
+        del frame
+        del last_pdb_frame
+
+
+def _jupyterlab_variableinspector_new_raw_input(self, prompt=''):
+    up_locals = _jupyterlab_variableinspector_up_locals()
+    if up_locals:
+        def keep_cond(v):
+            try:
+                if isinstance(v, str):
+                    return True
+                if tf and isinstance(v, tf.Variable):
+                    return True
+                if str(v)[0] == "<":
+                    return False
+                if  v in ['np', 'pd', 'pyspark', 'tf']:
+                    return v is not None
+                if str(v).startswith("_Feature"):
+                    # removes tf/keras objects
+                    return False
+                return True
+            except:
+                return False
+
+        vardic = []
+        for key in up_locals:
+            value = up_locals[key]
+            if keep_cond(value):
+                vardic.append({'varName': key, 
+                               'varType': type(value).__name__, 
+                               'varSize': str(_jupyterlab_variableinspector_getsizeof(value)), 
+                               'varShape': str(_jupyterlab_variableinspector_getshapeof(value)) if _jupyterlab_variableinspector_getshapeof(value) else '', 
+                               'varContent': str(_jupyterlab_variableinspector_getcontentof(value)), 
+                               'isMatrix': _jupyterlab_variableinspector_is_matrix(value),
+                               'scope': 'local'})
+        vardic.extend(_jupyterlab_variableinspector_just_list())
+
+        self.send_response(self.iopub_socket, u'variableinspector', {"data": json.dumps(vardic)})
+    return self._old_raw_input(prompt)
+
+
+def _jupyterlab_variableinspector_set_kernel_raw_input():
+    k = _jupyterlab_variableinspector_Jupyter.kernel
+    if k.raw_input.im_func is not _jupyterlab_variableinspector_new_raw_input:
+        import types
+        k._old_raw_input = k.raw_input
+        k.raw_input = types.MethodType(_jupyterlab_variableinspector_new_raw_input, k)
+
+
+_jupyterlab_variableinspector_set_kernel_raw_input()
+
+
+def _jupyterlab_variableinspector_getmatrixcontent(x, scope="global", maxrows=10000):
     
     # to do: add something to handle this in the future
-    threshold = max_rows
+    threshold = maxrows
+
+    if scope == "local":
+        up_locals = _jupyterlab_variableinspector_up_locals()
+        x = up_locals[x]
 
     if pd and pyspark and isinstance(x, pyspark.sql.DataFrame):
         df = x.limit(threshold).toPandas()

@@ -29,6 +29,16 @@ import {
 import {
     JSONModel, DataModel
 } from "@phosphor/datagrid";
+import { JSONObject } from '@phosphor/coreutils';
+
+
+export
+    interface IWithData extends JSONObject {
+        /**
+         * Type of cell output.
+         */
+        data: string;
+    }
 
 /**
  * An object that handles code inspection.
@@ -101,9 +111,14 @@ export
      * Performs an inspection of the specified matrix.
      */
 
-    public performMatrixInspection( varName: string, maxRows=100000 ): Promise<DataModel> {
+    public performMatrixInspection( varName: string, scope='global', maxRows=100000 ): Promise<DataModel> {
+        let code = this._matrixQueryCommand + "(" + varName + ", scope=\"" + scope + "\", maxrows=" + maxRows + ")";
+        if (scope == 'local') {
+            code = this._matrixQueryCommand + "(\"" + varName + "\", scope=\"" + scope + "\", maxrows=" + maxRows + ")";
+        }
+
         let request: KernelMessage.IExecuteRequest = {
-            code: this._matrixQueryCommand + "(" + varName + ", " + maxRows + ")",
+            code: code,
             stop_on_error: false,
             store_history: false,
         };
@@ -178,7 +193,7 @@ export
                 content = content.replace( /^'|'$/g, '' ).replace( /\\"/g, "\"" ).replace( /\\'/g, "\'" );
 
                 let update: IVariableInspector.IVariableInspectorUpdate;
-                update = <IVariableInspector.IVariableInspectorUpdate>JSON.parse( content );
+                update = <IVariableInspector.IVariableInspectorUpdate>JSON.parse( "{\"is_input\": false, \"values\": " + content + "}" );
 
                 this._inspected.emit( update );
                 break;
@@ -186,9 +201,6 @@ export
                 break;
         }
     };
-
-
-
 
 
     /*
@@ -202,6 +214,16 @@ export
                 if ( !( code == this._queryCommand ) && !( code == this._matrixQueryCommand ) ) {
                     this.performInspection();
                 }
+                break;
+            case 'variableinspector':
+                let payload = msg.content as IWithData;
+                let content: string = <string>payload.data;
+                content = content.replace( /^'|'$/g, '' ).replace( /\\"/g, "\"" ).replace( /\\'/g, "\'" );
+
+                let update: IVariableInspector.IVariableInspectorUpdate;
+                update = <IVariableInspector.IVariableInspectorUpdate>JSON.parse( "{\"is_input\": true, \"values\": " + content + "}" );
+
+                this._inspected.emit( update );
                 break;
             default:
                 break;

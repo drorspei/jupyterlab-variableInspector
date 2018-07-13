@@ -46,11 +46,15 @@ namespace IVariableInspector {
         disposed: ISignal<any, void>;
         inspected: ISignal<any, IVariableInspectorUpdate>;
         performInspection(): void;
-        performMatrixInspection( varName: string ): Promise<DataModel>;
+        performMatrixInspection( varName: string, scope:string ): Promise<DataModel>;
     }
 
     export
-        type IVariableInspectorUpdate = Array<IVariable>;
+        interface IVariableInspectorUpdate {
+        is_input: boolean;
+        values: Array<IVariable>;
+    }
+        //type IVariableInspectorUpdate = Array<IVariable>;
 
 
     export
@@ -61,6 +65,7 @@ namespace IVariableInspector {
         varContent: string;
         varType: string;
         isMatrix: Boolean;
+        scope: string;
     }
 }
 
@@ -125,27 +130,38 @@ export
         let row: HTMLTableRowElement;
         this._table.deleteTFoot();
         this._table.createTFoot();
-        for ( var index = 0; index < args.length; index++ ) {
+        for ( var index = 0; index < args.values.length; index++ ) {
             row = this._table.tFoot.insertRow();
-            if ( args[index].isMatrix ) {
-                let name = args[index].varName;
-                row.onclick = ( ev: MouseEvent ): any => {
-                    this._source.performMatrixInspection( name ).then(( model: DataModel ) => {
-                        this._showMatrix( model, name )
-                    } );
+            if ( args.values[index].isMatrix ) {
+                let name = args.values[index].varName;
+                let scope = args.values[index].scope;
+                if (!args.is_input) {
+                    row.onclick = ( ev: MouseEvent ): any => {
+                        this._source.performMatrixInspection( name, scope ).then(( model: DataModel ) => {
+                            this._showMatrix( model, name )
+                        } );
+                    }
                 }
-                row.bgColor = "#e5e5e5";
+                if (args.values[index].scope == 'global') {
+                    row.bgColor = "#e5e5e5";
+                } else {
+                    row.bgColor = "#e5ffe5";
+                }
+            } else {
+                if (args.values[index].scope == 'local') {
+                    row.bgColor = "#7fff8a";
+                }
             }
             let cell = row.insertCell( 0 );
-            cell.innerHTML = args[index].varName;
+            cell.innerHTML = args.values[index].varName;
             cell = row.insertCell( 1 );
-            cell.innerHTML = args[index].varType;
+            cell.innerHTML = args.values[index].varType;
             cell = row.insertCell( 2 );
-            cell.innerHTML = args[index].varSize;
+            cell.innerHTML = args.values[index].varSize;
             cell = row.insertCell( 3 );
-            cell.innerHTML = args[index].varShape;
+            cell.innerHTML = args.values[index].varShape;
             cell = row.insertCell( 4 );
-            cell.innerHTML = args[index].varContent.replace(/\\n/g,  "</br>");
+            cell.innerHTML = args.values[index].varContent.replace(/\\n/g,  "</br>");
         }
     }
 
