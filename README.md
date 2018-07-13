@@ -26,7 +26,7 @@ Download the repository and build the project with `npm install` and `npm run bu
 ## TODOs
 ~~- [ ] Load inspection script from relative paths.~~
 - [x] Add a better presentation (datagrids) for dataframes and ndarrays.
-- [ ] Show locals of frame when using pdb - works when stepping, but not yet when changing the stacking using "up"/"down" commands.
+- [ ] Show locals of frame when using pdb - works when stepping, but not yet when changing the stack using "up"/"down" commands.
 - [ ] Allow sorting the inspector table.
 - [ ] Add support for other languages.
 
